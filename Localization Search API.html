@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html>
+   <head>
+      <title></title>
+      <meta charset="utf-8" />
+      <script type='text/javascript'>
+         var map, searchManager;
+         var xmlUrl = '/Common/data/georss/SampleGeoRSS.xml';
+         var infLoc = {Lat:"", Long:"", Nome:""}
+         
+         function GetMap() {  //Esta função permite carregar o mapa na pági
+             map = new Microsoft.Maps.Map('#myMap', {});
+             Microsoft.Maps.loadModule('Microsoft.Maps.GeoXml', function () {
+                 Microsoft.Maps.GeoXml.readFromUrl(xmlUrl, null, function (data) {
+                     renderGeoXmlDataSet(data);
+                 });
+             });
+         }
+		 
+         function renderGeoXmlDataSet(data) { //Esta função permite encontrar a localização em tempo real
+             if (data.shapes) {
+                 map.entities.push(data.shapes);
+             }
+             if (data.layers) {
+                 for (var i = 0, len = data.layers.length; i < len; i++) {
+                     map.layers.insert(data.layers[i]);
+                 }
+             }
+             if (data.screenOverlays) {
+                 for (var i = 0, len = data.screenOverlays.length; i < len; i++) {
+                     map.layers.insert(data.screenOverlays[i]);
+                 }
+             }
+             if (data.summary && data.summary.bounds) {
+                 map.setView({ bounds: data.summary.bounds, padding: 30 });
+             }
+         }
+         
+         function Search() { //Esta função permite procurar o local e obter as coordenadas do mesmo
+         document.getElementById("search").disabled=true;
+          var xmlhttp = new XMLHttpRequest();
+          var url = "http://api.geonames.org/search?username=david9morais&name=" + document.getElementById("searchTbx").value;
+           xmlhttp.onreadystatechange=function(){
+         if (xmlhttp.readyState == 4 && xmlhttp.status == 200)
+         {  document.getElementById("search").disabled=false;
+            processarCoordenadas(xmlhttp.responseXML);
+         }
+         }
+         xmlhttp.open("GET", url, true);
+         xmlhttp.send();
+             if (!searchManager) {
+                 Microsoft.Maps.loadModule('Microsoft.Maps.Search', function () {
+                     searchManager = new Microsoft.Maps.Search.SearchManager(map);
+                     Search()
+                 });
+             } else {
+                 map.entities.clear();
+                 var query = document.getElementById('searchTbx').value;
+                 geocodeQuery(query);
+             }
+         }
+		 
+         function geocodeQuery(query) { //Esta função permite obter os resultados de todos os locais possíveis com o nome pesquisado e inserir os pins no mapa a localizar o local
+             var searchRequest = {
+                 where: query,
+                 callback: function (r) {
+                     if (r && r.results && r.results.length > 0) {
+                         var pin, pins = [], locs = [], output = 'Resultados:<br/>';
+                         for (var i = 0; i < r.results.length; i++) {
+                             pin = new Microsoft.Maps.Pushpin(r.results[i].location, {
+                                 text: i + ''
+                             });
+                             pins.push(pin);
+                             locs.push(r.results[i].location);
+                             output += i+1 + '- ' + r.results[i].name + '<br/>';
+                         }
+                         map.entities.push(pins);
+                         document.getElementById('output').innerHTML = output;
+                         var bounds;
+                         if (r.results.length == 1) {
+                             bounds = r.results[0].bestView;
+                         } else {
+                             bounds = Microsoft.Maps.LocationRect.fromLocations(locs);
+                         }
+                         map.setView({ bounds: bounds });
+                     }
+                 },
+                 errorCallback: function (e) {
+                     alert("No results found.");
+                 }
+             };
+             searchManager.geocode(searchRequest);
+         }
+		 
+         function processarCoordenadas(DOMDoc){ //Esta função gera as coordenadas do local pesquisado
+         var oEv = new XPathEvaluator();
+         infLoc.Lat = oEv.evaluate("//lat/child::text()", DOMDoc, null, XPathResult.STRING_TYPE, null).stringValue;
+         infLoc.Long = oEv.evaluate("//lng/child::text()", DOMDoc, null, XPathResult.STRING_TYPE, null).stringValue;
+         infLoc.Nome = oEv.evaluate("//name/child::text()", DOMDoc, null, XPathResult.STRING_TYPE, null).stringValue;
+         var url="http://api.geonames.org/findNearByWeatherXML?lat="+infLoc.Lat+"&lng="+infLoc.Long +"&lang=pt&username=david9morais";
+         var xmlhttp = new XMLHttpRequest();
+         xmlhttp.onreadystatechange=function(){
+         if (xmlhttp.readyState == 4 && xmlhttp.status == 200)
+         {  
+            var oEv = new XPathEvaluator();
+			mostrarDados();
+         }
+         }
+         xmlhttp.open("GET", url, true);
+         xmlhttp.send();
+         }
+         
+         function mostrarDados(){  //Esta função permite mostrar as coordenadas do local pesquisado
+			var oQuadro = document.getElementById("oQuadro");
+         	 if (infLoc.Lat == null || infLoc.Long == null)
+              { 
+				oQuadro.innerHTML="* Nada Encontrado *";
+              }
+            else
+              { 
+				oQuadro.innerHTML=infLoc.Nome+": ("+ infLoc.Lat + " , " + infLoc.Long + ")";		 
+			  }            
+         }
+      </script>
+      <script type='text/javascript' src='https://www.bing.com/api/maps/mapcontrol?callback=GetMap&key=AhjEBG9kn90gTn_okEBgSQ2mLXsaWXRbcfD1ARt-soPzEnVzRZmog164stBG7AZj' async defer></script>
+   </head>
+   <body>
+      <div id="myMap" style="position:relative;width:800px;height:600px;"></div>
+      <input id='searchTbx' type='text'/>
+      <input type='button' id='search' value='Search' onclick='Search()'/>
+      <div id="oQuadro"></div>
+      <br/>
+      <div id='output'></div>
+   </body>
+</html>
